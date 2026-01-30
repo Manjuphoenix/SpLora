@@ -1,0 +1,14 @@
+_BASE_: ../../base.yaml
+MODEL:
+  SEM_SEG_HEAD:
+    NUM_CLASSES: 9
+    TRAIN_CLASS_JSON: "datasets/msrs_rgb.json"
+    TEST_CLASS_JSON: "datasets/msrs_rgb.json"
+DATASETS:
+  TRAIN: ("msrs_ir_sem_seg_train",)
+  TEST: ("msrs_ir_sem_seg_val",)
+SOLVER:
+  MAX_ITER: 20000
+  CHECKPOINT_PERIOD: 20000
+
+

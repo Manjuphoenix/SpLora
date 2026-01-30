@@ -196,11 +196,12 @@ def register_all_coco_stuff_10k(root):
     meta = _get_coco_stuff_meta()
     for name, image_dirname, sem_seg_dirname in [
         ("train", "images/train2017", "annotations_detectron2/train2017"),
-        ("test", "images/val2017", "annotations_detectron2/val2017"),
+        ("val", "images/val2017", "annotations_detectron2/val2017"),
     ]:
         image_dir = os.path.join(root, image_dirname)
         gt_dir = os.path.join(root, sem_seg_dirname)
-        name = f"coco_2017_{name}_stuff_all_sem_seg"
+        # name = f"coco_2017_{name}_stuff_all_sem_seg"
+        name = f"cocostuff_sem_seg_{name}"
         DatasetCatalog.register(
             name, lambda x=image_dir, y=gt_dir: load_sem_seg(y, x, gt_ext="png", image_ext="jpg")
         )

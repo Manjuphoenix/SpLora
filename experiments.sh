@@ -1,9 +1,9 @@
 #!/bin/bash
 
-semla_config='./config/semla_config.yaml'
-source_domains='./config/source_domains.yaml'
-target_domains='./config/target_domains.yaml'
-results_folder='./results/semla'
+semla_config='./semla_config.yaml'
+source_domains='./source_domains.yaml'
+target_domains='./target_domains.yaml'
+results_folder='./results/semla/inference/openearth'
 
 # Uncomment the experiments you want to run
 

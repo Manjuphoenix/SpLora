@@ -54,8 +54,8 @@ def register_bdd100k_sem_seg(root):
     root = os.path.join(root, "bdd100k")
     meta = _get_bdd100k_sem_seg_meta()
     for name, dirname in [("train", "train"), ("val", "val")]:
-        image_dir = os.path.join(root, "images", "10k" ,dirname)
-        gt_dir = os.path.join(root, "labels", "sem_seg", "masks", dirname)
+        image_dir = os.path.join(root,"seg", "images", dirname)
+        gt_dir = os.path.join(root, "seg","labels", dirname)   ## gt_dir = os.path.join(root, "labels", "sem_seg", "masks", dirname)
         name = f"bdd_sem_seg_{name}"
         DatasetCatalog.register(
             name, lambda x=image_dir, y=gt_dir: load_sem_seg(y, x, gt_ext="png", image_ext="jpg")

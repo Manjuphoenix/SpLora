@@ -5,4 +5,15 @@ catseg/loradb/
 catseg/datasets/
 catseg/output/
 catseg/models/
+catseg/visualizations/
+catseg/visualizations_scale_2/
+catseg/wandb/
+catseg/__pycache__/
+catseg/output_conv/
+catseg/loradb_vanilla_copied_from_ani/
+catseg/loradb_renamed_for_vanilla_inf/
+catseg/loradb_recent_conv/
+catseg/loradb_not_conv/
+catseg/loradb_new_conv_complete_set/
+catseg/loradb_incomplete/
 results/

@@ -9,12 +9,18 @@ import os
 
 import numpy as np
 import numpy.typing as npt
+import pandas as pd
+import os
 
 import torch
 from torch import nn
 import torch.nn.functional as F
+from typing import List
 
 import peft
+from PIL import Image
+
+import tqdm
 
 from .embedding import EmbeddingManager
 
@@ -23,9 +29,12 @@ logging.disable()
 torch.set_float32_matmul_precision("high")
 
 from .utils import custom_domain_args, get_domain_args, benchmark_catseg, load_catseg_model
+from typing import Tuple, Dict
+from typing import Optional
 
 
-def softmax(x: list[float], softmax_temperature) -> np.ndarray:
+# def softmax(x: list[float], softmax_temperature) -> np.ndarray:
+def softmax(x: List[float], softmax_temperature) -> np.ndarray:
     """Compute softmax values for each sets of scores in x."""
     
     # Add error handling for division by zero
@@ -68,7 +77,8 @@ class DomainObserver:
     def calculate_similarity_to_domains(
         self, 
         embedding: npt.NDArray, 
-        domains: list[Domain],
+        # domains: list[Domain],
+        domains: List[Domain],
         similarity_measure: Callable[[npt.NDArray, npt.NDArray], np.float64],
         sort_descending: bool = True
     ) -> Dict[str, float]:
@@ -90,7 +100,8 @@ class DomainObserver:
 class DomainOrchestrator:
     def __init__(
         self,
-        domains: list[str],
+        # domains: list[str],
+        domains: List[str],
         lora_db_path: Union[str, Path] = "loradb/",
         embedding_manager: EmbeddingManager = EmbeddingManager(),
     ) -> None:
@@ -187,7 +198,7 @@ class DomainOrchestrator:
 
     def _add_domains(
         self,
-        source_domain_names: list[str],
+        source_domain_names: List[str],
         split: Literal["train", "val"],
     ) -> Dict[str, Domain]:
         """
@@ -250,10 +261,10 @@ class DomainOrchestrator:
     
     def _batch_merge(
         self,
-        target_domains: list[str],
+        target_domains: List[str],
         mode: Literal["uniform", "centroid"],
         remove_target_adapter: bool = False,
-    ) -> tuple[dict[str, float], dict[str, float]]:
+    ) -> Tuple[Dict[str, float], Dict[str, float]]:
         """
         Merge the source domains and benchmark the merged adapter on the target domains.
         """
@@ -308,7 +319,7 @@ class DomainOrchestrator:
         remove_target_adapter: bool,
         mode: Literal["uniform", "centroid"],
         target_embedding=None,
-        softmax_temperature: int | None = 0.05,
+        softmax_temperature: Optional[float] = 0.05,
         top_k: int = 5,  # number of domains to merge
         combination_type: str = "cat",
         similarity_measure: Callable[
@@ -316,7 +327,7 @@ class DomainOrchestrator:
         ] = lambda v1, v2: np.linalg.norm(v1 - v2),
         sort_descending: bool = True
 
-    ) -> tuple[dict[str, float], str]:
+    ) -> Tuple[Dict[str, float], str]:
         """
         Merge the source domains and benchmark the merged adapter on the target domain.
         """
@@ -363,12 +374,40 @@ class DomainOrchestrator:
             k_closest_names = list(similarity_mapping.keys())[: top_k]
             k_closest_similarities = list(similarity_mapping.values())[: top_k]
 
+            print('')
+
             print(f"Similarities to {top_k} closest domains: ")
             for n, d in zip(k_closest_names, k_closest_similarities):
                 print(f"{n}: {d}", end=", ")
             print("")
 
+            ####################################################################################################
+
+            # # ===== SAVE CSV PART =====
+            # log_path = os.path.join("/data/aniruddh/SemLA_base1/csv_2", "idd.csv")
+
+            # # Ensure directory exists
+            # os.makedirs(os.path.dirname(log_path) or ".", exist_ok=True)
+
+            # # Check append mode
+            # append = os.path.exists(log_path)
+
+            # df = pd.DataFrame({
+            #     "name": k_closest_names[:top_k],
+            #     "similarity": k_closest_similarities[:top_k],
+            #     "occurrence": [1] * top_k,
+            # })
+
+            # df.to_csv(log_path, mode='a', header=not append, index=False)
+            # print(f"CSV successfully written to: {os.path.abspath(log_path)}")
+            # print(hey)
+            # =========================
+
+
+
             weights = self._calculate_adapter_weights(k_closest_similarities, softmax_temperature)
+            print('weights---',weights)
+            print('k_closest_names---',k_closest_names)
 
             domain_weight_mapping = {
                 k_closest_name: weight
@@ -386,7 +425,7 @@ class DomainOrchestrator:
                 merged_name=merged_name,
                 combination_type=combination_type
             )
-
+        # print(hey)
         print(f"Setting {merged_name} as the active adapter.\n")
         self.current_model.set_adapter(merged_name)
 
@@ -394,8 +433,8 @@ class DomainOrchestrator:
 
     def _merge_adapters(
         self,
-        merge_domains: list[str],
-        weights: list[float],
+        merge_domains: List[str],
+        weights: List[float],
         merged_name: str,
         combination_type: str,
     ) -> None:
@@ -415,7 +454,7 @@ class DomainOrchestrator:
             combination_type=combination_type,
         )
 
-    def _calculate_adapter_weights(self, similarities:list[float], temperature: float) -> list[float]:
+    def _calculate_adapter_weights(self, similarities:List[float], temperature: float) -> List[float]:
         """
         Calculate the weights for the merged adapter based on the similarities to the source domains.
         """
@@ -436,7 +475,209 @@ class DomainOrchestrator:
         return res
 
 
-    def benchmark_zeroshot(self, target_domains: list[str]) -> dict[str, float]:
+
+    def _get_metadata_colors(self, dataset_name: str) -> np.ndarray:
+        """Get color palette from dataset metadata."""
+        from detectron2.data import MetadataCatalog
+        from detectron2.utils.colormap import colormap as d2_colormap
+        try:
+            meta = MetadataCatalog.get(dataset_name)
+            if hasattr(meta, 'stuff_colors') and meta.stuff_colors is not None:
+                colors = np.array(meta.stuff_colors, dtype=np.uint8)
+            else:
+                colors = (d2_colormap(rgb=True) * 255).astype(np.uint8)
+        except Exception:
+            colors = (d2_colormap(rgb=True) * 255).astype(np.uint8)
+        return colors
+
+    # def _colorize_mask(self, mask: np.ndarray, colors: np.ndarray, ignore_label: int = 255) -> np.ndarray:
+    #     """Colorize a segmentation mask using the provided color palette."""
+    #     h, w = mask.shape
+    #     colored = np.zeros((h, w, 3), dtype=np.uint8)
+    #     unique_labels = np.unique(mask)
+    #     for label in unique_labels:
+    #         if label == ignore_label:
+    #             continue
+    #         if label < len(colors):
+    #             colored[mask == label] = colors[label]
+    #         else:
+    #             np.random.seed(label)
+    #             colored[mask == label] = np.random.randint(0, 255, 3)
+    #     return colored
+
+
+    def _colorize_mask(
+        self, 
+        mask: np.ndarray, 
+        colors: np.ndarray, 
+        ignore_label: int = 255,
+        class_names: list = None,
+        add_labels: bool = True,
+        large_mask_area_thresh: int = 120000,  # Same as detectron2
+    ) -> np.ndarray:
+        """Colorize a segmentation mask using the provided color palette and optionally add class labels.
+        
+        Uses connected component analysis to place labels on each separate instance,
+        similar to detectron2's Visualizer.
+        """
+        import cv2
+        from PIL import ImageDraw, ImageFont
+        
+        h, w = mask.shape
+        colored = np.zeros((h, w, 3), dtype=np.uint8)
+        unique_labels = np.unique(mask)
+        
+        for label in unique_labels:
+            if label == ignore_label:
+                continue
+            if label < len(colors):
+                colored[mask == label] = colors[label]
+            else:
+                np.random.seed(label)
+                colored[mask == label] = np.random.randint(0, 255, 3)
+        
+        # Add class name labels if requested
+        if add_labels and class_names is not None:
+            pil_img = Image.fromarray(colored)
+            draw = ImageDraw.Draw(pil_img)
+            
+            # Try to get a font, fall back to default if not available
+            try:
+                font_size = max(12, min(h, w) // 40)  # Scale font with image size
+                font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", font_size)
+            except Exception:
+                font = ImageFont.load_default()
+            
+            for label in unique_labels:
+                if label == ignore_label:
+                    continue
+                if label >= len(class_names):
+                    continue
+                
+                # Get class name
+                class_name = class_names[label]
+                
+                # Create binary mask for this class
+                binary_mask = (mask == label).astype(np.uint8)
+                
+                # Use connected components to find separate instances (like detectron2)
+                num_cc, cc_labels, stats, centroids = cv2.connectedComponentsWithStats(binary_mask, 8)
+                
+                if num_cc <= 1:  # No components found (only background)
+                    continue
+                
+                # Get areas of each component (stats[:, -1] is the area)
+                # Component 0 is background, so we skip it
+                component_areas = stats[1:, cv2.CC_STAT_AREA]
+                if len(component_areas) == 0:
+                    continue
+                
+                # Find the largest component
+                largest_component_id = np.argmax(component_areas) + 1  # +1 because we skipped background
+                
+                # Draw text on largest component and other very large components
+                for cid in range(1, num_cc):
+                    component_area = stats[cid, cv2.CC_STAT_AREA]
+                    
+                    # Label if it's the largest OR if it's larger than threshold
+                    if cid == largest_component_id or component_area > large_mask_area_thresh:
+                        # Use median position (more stable than centroid, like detectron2)
+                        component_mask = (cc_labels == cid)
+                        ys, xs = np.where(component_mask)
+                        if len(xs) == 0:
+                            continue
+                        
+                        cx = int(np.median(xs))
+                        cy = int(np.median(ys))
+                        
+                        # Get text bounding box for background
+                        bbox = draw.textbbox((cx, cy), class_name, font=font)
+                        text_w = bbox[2] - bbox[0]
+                        text_h = bbox[3] - bbox[1]
+                        
+                        # Adjust position to center text
+                        tx = cx - text_w // 2
+                        ty = cy - text_h // 2
+                        
+                        # Ensure text stays within image bounds
+                        tx = max(2, min(tx, w - text_w - 2))
+                        ty = max(2, min(ty, h - text_h - 2))
+                        
+                        # Draw background rectangle for readability
+                        padding = 2
+                        draw.rectangle(
+                            [tx - padding, ty - padding, tx + text_w + padding, ty + text_h + padding],
+                            fill=(0, 0, 0, 180)
+                        )
+                        
+                        # Draw text in white
+                        draw.text((tx, ty), class_name, fill=(255, 255, 255), font=font)
+            
+            colored = np.array(pil_img)
+        
+        return colored
+        
+
+    def _save_visualization(
+        self,
+        input_path: str,
+        inputs: list,
+        outputs: list,
+        viz_output_dir: Path,
+        colors: np.ndarray,
+        ignore_label: int = 255,
+        viz_prefix: str = "",
+        class_names: list = None,  # List of class names for labeling
+    ) -> None:
+        """Save original image, ground truth, and prediction visualizations."""
+        from pathlib import Path as PathLib
+        
+        base_name = PathLib(input_path).stem
+        
+        # Create subdirectories
+        original_dir = viz_output_dir / "original"
+        gt_dir = viz_output_dir / "ground_truth"
+        # import ipdb; ipdb.set_trace()
+        pred_dir = viz_output_dir / f"prediction{'_' + viz_prefix if viz_prefix else ''}"
+        
+        original_dir.mkdir(parents=True, exist_ok=True)
+        gt_dir.mkdir(parents=True, exist_ok=True)
+        pred_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Save original image
+        try:
+            original_img = np.array(Image.open(input_path).convert("RGB"))
+            Image.fromarray(original_img).save(str(original_dir / f"{base_name}.png"))
+        except Exception as e:
+            print(f"Warning: Could not save original image: {e}")
+        
+        # Save ground truth if available
+        input_dict = inputs[0]
+        if "sem_seg" in input_dict:
+            gt_mask = input_dict["sem_seg"].cpu().numpy()
+            # gt_colored = self._colorize_mask(gt_mask, colors, ignore_label)
+            gt_colored = self._colorize_mask(gt_mask, colors, ignore_label, class_names=class_names)
+            Image.fromarray(gt_colored).save(str(gt_dir / f"{base_name}.png"))
+        elif "sem_seg_file_name" in input_dict:
+            try:
+                gt_mask = np.array(Image.open(input_dict["sem_seg_file_name"]))
+                # gt_colored = self._colorize_mask(gt_mask, colors, ignore_label)
+                gt_colored = self._colorize_mask(gt_mask, colors, ignore_label, class_names=class_names)
+                Image.fromarray(gt_colored).save(str(gt_dir / f"{base_name}.png"))
+            except Exception as e:
+                print(f"Warning: Could not load ground truth: {e}")
+        
+        # Save prediction
+        try:
+            pred = outputs[0]["sem_seg"].argmax(dim=0).cpu().numpy()
+            # pred_colored = self._colorize_mask(pred, colors, ignore_label)
+            pred_colored = self._colorize_mask(pred, colors, ignore_label, class_names=class_names)
+            Image.fromarray(pred_colored).save(str(pred_dir / f"{base_name}.png"))
+        except Exception as e:
+            print(f"Warning: Could not save prediction: {e}")
+
+
+    def benchmark_zeroshot(self, target_domains: List[str]) -> Dict[str, float]:
         results = {}
 
         for current_target_domain_name in target_domains:
@@ -468,7 +709,15 @@ class DomainOrchestrator:
 
         return results
     
-    def benchmark_oracle(self, target_domains: list[str]) -> dict[str, float]:
+    def benchmark_oracle(self, target_domains: List[str]) -> Dict[str, float]:
+
+        save_visualizations = True
+
+        viz_output_dir = "visualizations/zeroshot"
+        from detectron2.evaluation import inference_context, SemSegEvaluator
+        from contextlib import ExitStack
+
+        
         results = {}
 
         for current_target_domain_name in target_domains:
@@ -499,9 +748,9 @@ class DomainOrchestrator:
 
     def benchmark_uniform(
         self,
-        target_domains: list[str],
+        target_domains: List[str],
         remove_target_adapter: bool,
-    ) -> tuple[dict[str, float], dict[str, float]]:
+    ) -> Tuple[Dict[str, float], Dict[str, float]]:
         print(f"Starting uniform merge on domains {target_domains}")
 
         results, weights = self._batch_merge(
@@ -516,16 +765,21 @@ class DomainOrchestrator:
 
     def benchmark_semla(
         self,
-        target_domains: list[str],
+        target_domains: List[str],
         remove_target_adapter: bool = False,
-        softmax_temperature: int | None = 0.05,
+        softmax_temperature: Optional[float] = 0.05,
         top_k: int = 5,  # number of domains to merge
         combination_type: str = "cat",
         similarity_measure: Callable[
             [npt.NDArray, npt.NDArray], np.float64
         ] = lambda v1, v2: 1 / np.linalg.norm(v1 - v2),
         sort_descending: bool = True
-    ) -> tuple[dict[str, float], dict[str, float]]:
+    ) -> Tuple[Dict[str, float], Dict[str, float]]:
+
+
+        viz_output_dir = "visualizations/cs_van_lora"
+        viz_prefix = "lora",  # e.g., "lora" or "conv_dora"
+        
         
         from detectron2.evaluation import inference_context, SemSegEvaluator
         from contextlib import ExitStack
@@ -553,12 +807,43 @@ class DomainOrchestrator:
 
             evaluator.reset()
 
+            # Setup visualization if enabled
+            viz_colors = None
+            viz_ignore_label = 255
+            viz_dir = None
+            save_visualizations = False
+            viz_class_names = None
+            from detectron2.data import MetadataCatalog
+            viz_dir = Path(viz_output_dir) / current_target_domain_name
+            viz_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Get dataset name for metadata
+            dataset_name = f"{current_target_domain_name}_sem_seg_val"
+            # Handle special cases
+            # if current_target_domain_name in ["IE_Segmentation", "indraeye"]:
+            #     dataset_name = "IE_Segmentation_sem_seg_val"
+            # elif current_target_domain_name == "isprs":
+            #     dataset_name = "isprs_potsdam_sem_seg_val"
+            
+            viz_colors = self._get_metadata_colors(dataset_name)
+            try:
+                meta = MetadataCatalog.get(dataset_name)
+                viz_ignore_label = getattr(meta, 'ignore_label', 255)
+                # Get class names for labeling
+                viz_class_names = getattr(meta, 'stuff_classes', None)
+            except Exception:
+                viz_ignore_label = 255
+            print(f"Visualization enabled. Saving to: {viz_dir}")
+
+            # with ExitStack() as stack:
+            # import ipdb; ipdb.set_trace()
             with ExitStack() as stack:
                 if isinstance(model, nn.Module):
                     stack.enter_context(inference_context(model))
                 stack.enter_context(torch.no_grad())
 
                 for _, inputs in enumerate(data_loader):
+                # for _, inputs in tqdm(enumerate(data_loader), total=len(data_loader)):
 
                     input_path = inputs[0]["file_name"]
 
@@ -583,7 +868,24 @@ class DomainOrchestrator:
 
                     model = self.current_model
 
+                    # outputs = model(inputs)
+
                     outputs = model(inputs)
+                    
+                    # Save visualizations if enabled
+                    # import ipdb;  ipdb.set_trace()
+                    if  viz_dir is not None:
+                        self._save_visualization(
+                            input_path=input_path,
+                            inputs=inputs,
+                            outputs=outputs,
+                            viz_output_dir=viz_dir,
+                            colors=viz_colors,
+                            ignore_label=viz_ignore_label,
+                            viz_prefix="lora",
+                            class_names=viz_class_names,
+                        )
+                    
 
                     if torch.cuda.is_available():
                         torch.cuda.synchronize()

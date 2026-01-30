@@ -98,7 +98,7 @@ def _get_idd_files(image_dir, gt_dir):
 
             suffix = "_leftImg8bit"
             suffix_with_extension = "_leftImg8bit.png"
-            assert suffix in basename, basename
+            # assert suffix in basename, basename
             basename = basename[: -len(suffix_with_extension)]
 
             label_file = os.path.join(folder_gt_dir, basename + "_gtFine_labellevel3Ids.png")

@@ -1,0 +1,16 @@
+_BASE_: ../base.yaml
+MODEL:
+  SEM_SEG_HEAD:
+    NUM_CLASSES: 172
+    TRAIN_CLASS_JSON: "datasets/coco.json"
+    # TEST_CLASS_JSON: "datasets/indraeye.json"
+    TEST_CLASS_JSON: "datasets/msrs.json"
+DATASETS:
+  TRAIN: ("coco-stuff_sem_seg_train",)
+  # TEST: ("coco-stuff_sem_seg_val",)
+  # TEST: ("IE_Segmentation_sem_seg_val",)
+  TEST: ("msrs_rgb_sem_seg_val",)
+SOLVER:
+  MAX_ITER: 86154
+  CHECKPOINT_PERIOD: 40000
+

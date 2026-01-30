@@ -155,7 +155,8 @@ class CATSeg(nn.Module):
 
         image_features = clip_features[:, 1:, :]
 
-        # CLIP ViT features for guidance
+        # CLIP ViT features for guidance\
+        import ipdb; ipdb.set_trace()
         res3 = rearrange(image_features, "B (H W) C -> B C H W", H=24)
         res4 = rearrange(self.layers[0][1:, :, :], "(H W) B C -> B C H W", H=24)
         res5 = rearrange(self.layers[1][1:, :, :], "(H W) B C -> B C H W", H=24)

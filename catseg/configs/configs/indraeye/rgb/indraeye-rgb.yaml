@@ -1,0 +1,14 @@
+_BASE_: ../../base.yaml
+MODEL:
+  SEM_SEG_HEAD:
+    NUM_CLASSES: 13
+    TRAIN_CLASS_JSON: "datasets/indraeye_rgb.json"
+    TEST_CLASS_JSON: "datasets/indraeye_rgb.json"
+DATASETS:
+  TRAIN: ("indraeye_sem_seg_train",)
+  TEST: ("indraeye_sem_seg_val",)
+SOLVER:
+  MAX_ITER: 20000
+  CHECKPOINT_PERIOD: 20000
+
+

@@ -96,6 +96,8 @@ class LoraLayer(BaseTunerLayer):
         self.lora_dropout = nn.ModuleDict({})
         self.lora_A = nn.ModuleDict({})
         self.lora_B = nn.ModuleDict({})
+        self.lora_C = nn.ModuleDict({})
+        self.lora_Cu = nn.ModuleDict({})
         # For Embedding layer
         self.lora_embedding_A = nn.ParameterDict({})
         self.lora_embedding_B = nn.ParameterDict({})
@@ -231,6 +233,64 @@ class LoraLayer(BaseTunerLayer):
         # Actual trainable parameters
         self.lora_A[adapter_name] = nn.Linear(self.in_features, r, bias=False)
         self.lora_B[adapter_name] = nn.Linear(r, self.out_features, bias=lora_bias)
+        self.lora_bias[adapter_name] = lora_bias
+
+        
+        self.lora_C[adapter_name] = nn.Conv2d(r, 24, kernel_size=3, stride=2, padding=1, bias=False)
+        self.lora_Cu[adapter_name] = nn.Conv2d(24, r, kernel_size=3, stride=2, padding=1, bias=False)
+        self.lora_C = self.lora_C.cuda()
+        self.lora_Cu = self.lora_Cu.cuda()
+
+
+
+        # if "conv" in adapter_name:
+        #     if len(adapter_name)>30:
+        #         new_rank = adapter_name.count("conv")*8
+        #         self.lora_C[adapter_name] = nn.Conv2d(new_rank, 24, kernel_size=3, stride=2, padding=1, bias=False)
+        #         self.lora_Cu[adapter_name] = nn.Conv2d(24, new_rank, kernel_size=3, stride=2, padding=1, bias=False)
+        #     else:
+        #         self.lora_C[adapter_name] = nn.Conv2d(r, 24, kernel_size=3, stride=2, padding=1, bias=False)
+        #         self.lora_Cu[adapter_name] = nn.Conv2d(24, r, kernel_size=3, stride=2, padding=1, bias=False)
+
+        # else:
+        #     if len(adapter_name)>30:
+        #         new_rank = adapter_name.count("conv")*8
+        #         self.lora_C[adapter_name] = nn.Conv2d(new_rank, 24, kernel_size=3, stride=2, padding=1, bias=False)
+        #         self.lora_Cu[adapter_name] = nn.Conv2d(24, new_rank, kernel_size=3, stride=2, padding=1, bias=False)
+        #     else:
+        #         self.lora_C[adapter_name] = nn.Conv2d(r, 24, kernel_size=3, stride=2, padding=1, bias=False)
+        #         self.lora_Cu[adapter_name] = nn.Conv2d(24, r, kernel_size=3, stride=2, padding=1, bias=False)
+
+
+        # Check if we should use the dynamic rank based on "conv" count
+        # if "conv" in adapter_name and len(adapter_name) > 30:
+        #     new_rank = adapter_name.count("conv") * 8
+        #     # Ensure rank is at least 1 to prevent crashing
+        #     # new_rank = max(1, new_rank)
+            
+        #     self.lora_C[adapter_name] = nn.Conv2d(new_rank, 24, kernel_size=3, stride=2, padding=1, bias=False)
+        #     self.lora_Cu[adapter_name] = nn.Conv2d(24, new_rank, kernel_size=3, stride=2, padding=1, bias=False)
+        # else:
+        #     # Fallback to standard rank 'r' for short names OR names without "conv"
+        #     self.lora_C[adapter_name] = nn.Conv2d(r, 24, kernel_size=3, stride=2, padding=1, bias=False)
+        #     self.lora_Cu[adapter_name] = nn.Conv2d(24, r, kernel_size=3, stride=2, padding=1, bias=False)
+
+
+        # if len(adapter_name)>30:
+        #     new_rank = adapter_name.count("conv")*8
+        #     if "conv" in adapter_name:
+        #         self.lora_C[adapter_name] = nn.Conv2d(new_rank, 24, kernel_size=3, stride=2, padding=1, bias=False)
+        #         self.lora_Cu[adapter_name] = nn.Conv2d(24, new_rank, kernel_size=3, stride=2, padding=1, bias=False)
+        #     else:
+        #         self.lora_C[adapter_name] = nn.Conv2d(r, 24, kernel_size=3, stride=2, padding=1, bias=False)
+        #         self.lora_Cu[adapter_name] = nn.Conv2d(24, r, kernel_size=3, stride=2, padding=1, bias=False)
+        
+        # else:
+        #     self.lora_C[adapter_name] = nn.Conv2d(r, 24, kernel_size=3, stride=2, padding=1, bias=False)
+        #     self.lora_Cu[adapter_name] = nn.Conv2d(24, r, kernel_size=3, stride=2, padding=1, bias=False)
+        
+                
+
         self.lora_bias[adapter_name] = lora_bias
 
         if use_rslora:
@@ -780,18 +840,56 @@ class Linear(nn.Module, LoraLayer):
             result = self.base_layer(x, *args, **kwargs)
             torch_result_dtype = result.dtype
 
-            lora_A_keys = self.lora_A.keys()
+            lora_A_keys = self.lora_A.keys() 
+            
+            # import ipdb; ipdb.set_trace(context=10)
+            adapters_keys = list(self.lora_A.keys())
+
+            # self.active_adapters.append(adapters_keys[-2]) 
             for active_adapter in self.active_adapters:
                 if active_adapter not in lora_A_keys:
                     continue
 
                 lora_A = self.lora_A[active_adapter]
                 lora_B = self.lora_B[active_adapter]
+                lora_C = self.lora_C[active_adapter]
+                lora_Cu = self.lora_Cu[active_adapter]
                 dropout = self.lora_dropout[active_adapter]
                 scaling = self.scaling[active_adapter]
                 x = self._cast_input_dtype(x, lora_A.weight.dtype)
                 if active_adapter not in self.lora_variant:  # vanilla LoRA
-                    result = result + lora_B(lora_A(dropout(x))) * scaling
+                    # result = result + lora_B(lora_A(dropout(x))) * scaling
+                    # if ("conv" in active_adapter) and not ("conv" in (active_adapter.split("cat")[-1])):
+                    # if ("conv" in active_adapter):
+                    la = lora_A(dropout(x))
+                    L_orig, B_orig, C_orig = la.shape
+                    la = la.permute(1, 2, 0)    #     #torch.Size([2, 8, 577])
+                    target_size = int(math.sqrt(L_orig))
+                    target_spatial_size = target_size * target_size     #  576 (24 *24)
+                    pooled = F.adaptive_avg_pool1d(
+                        la,  # [2, 8, 577]
+                        target_spatial_size  # Pool to 576
+                    ).permute(0, 2, 1)  # [2, 576, 8]
+                    B_new, spatial_tokens, C_new = pooled.shape  # B_new=2, spatial_tokens=576, C_new=8
+                    spatial_4d = pooled.reshape(B_new, target_size, target_size, C_new).permute(0, 3, 1, 2)
+                    c1_op = lora_C(spatial_4d)
+                    c1_op = lora_Cu(c1_op)
+                    conv_flat = c1_op.permute(0, 2, 3, 1).reshape(B_new, -1, C_new)
+                    if conv_flat.shape[1] != L_orig:  # 576 != 577
+                        conv_upsampled = F.interpolate(
+                            conv_flat.permute(0, 2, 1),  # [2, 8, 576]
+                            size=L_orig,  # Interpolate back to 577
+                            mode='linear',
+                            align_corners=False
+                        ).permute(0, 2, 1)  # [2, 577, 8]
+                    else:
+                        conv_upsampled = conv_flat
+                    lb = lora_B(conv_upsampled)
+                    scaled_lora = lb * scaling
+                    result = result + scaled_lora.permute(1,0,2)
+                    # else:
+                    #     result = result + lora_B(lora_A(dropout(x))) * scaling
+                    
                 else:
                     result = self.lora_variant[active_adapter].forward(
                         self,
