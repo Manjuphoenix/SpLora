@@ -1,0 +1,27 @@
+date: 2026-04-17 12:38:04
+git_commit_hash: 2a887de018b3f2c3b132f69fe806bab12a2d511f
+save_dir: .save/CityscapesDataset/mlmp/
+data_dir: /four_tb/manjunath/AMD_Semla/catseg/datasets/cityscapes/
+prompt_dir: prompts.yaml
+dataset: CityscapesDataset
+workers: 4
+init_resize: [1120, 560]
+patch_size: [224, 224]
+patch_stride: 112
+corruptions_list: ['original', 'gaussian_noise']
+ovss_type: naclip
+ovss_backbone: ViT-L/14
+class_extensions: True
+adapt: True
+method: mlmp
+batch_size: 2
+lr: 0.001
+steps: 10
+trials: 1
+seed: 0
+plot_loss: True
+runtime_calculation: False
+debug: False
+vision_outputs: [-1, -2, -3, -4, -5, -6, -7, -8, -9, -10, -11, -12, -13, -14, -15, -16, -17, -18]
+prompt_integration: loss
+alpha_cls: 1.0
