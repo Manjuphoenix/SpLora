@@ -1,0 +1,8 @@
+torch
+numpy
+einops
+opencv-python
+matplotlib
+detectron2
+Pillow
+open_clip

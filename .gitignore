@@ -5,8 +5,22 @@ test_semla/catseg/wandb/
 
 
 
+test_conv_semla/SemLA/catseg/models/
+test_conv_semla/SemLA/catseg/loradb*
+test_conv_semla/SemLA/catseg/__pycache__/
+test_conv_semla/SemLA/catseg/output/
+test_conv_semla/SemLA/catseg/wandb/
+test_conv_semla/SemLA/catseg/visualizations/
+test_conv_semla/SemLA/catseg/__MACOSX/
+test_conv_semla/SemLA/catseg/.ipynb_checkpoints/
+
+
+
 .pth
 .npz
+.zip
+.safetensors
+
 __pycache__/
 
 
