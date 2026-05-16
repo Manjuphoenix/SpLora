@@ -1,13 +1,12 @@
-./test_semla/catseg/models
-./test_semla/catseg/loradb
+test_semla/catseg/models/
+test_semla/catseg/loradb/
+test_semla/catseg/__pycache__/
+test_semla/catseg/wandb/
 
 
-./test_conv_semla/SemLA/catseg/models
-./test_conv_semla/SemLA/catseg/visualizations/
-./test_conv_semla/SemLA/catseg/__pycache__
-./test_conv_semla/SemLA/catseg/wandb
-./test_conv_semla/SemLA/catseg/.ipynb_checkpoints
 
-./test_conv_semla/SemLA/catseg/loradb
-./test_conv_semla/SemLA/catseg/__MACOSX
+.pth
+.npz
+__pycache__/
+
 
